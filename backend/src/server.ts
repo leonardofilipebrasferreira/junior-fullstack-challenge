@@ -13,12 +13,18 @@ app.get('/health', (_req, res) => {
     status: 'ok'
   })
 })
+app.get('/message', async (_req, res) => {
+  console.log(JSON.stringify({
+    event: 'button_click',
+    timestamp: new Date().toISOString()
+  }))
 
-app.get('/db-test', async (_req, res) => {
-  const result = await pool.query('SELECT NOW()')
+  const result = await pool.query(
+    'SELECT content FROM messages ORDER BY id LIMIT 1'
+  )
 
   res.status(200).json({
-    databaseTime: result.rows[0].now
+    message: result.rows[0].content
   })
 })
 
