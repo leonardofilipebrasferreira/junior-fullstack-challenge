@@ -71,10 +71,13 @@ export async function initializeDatabase(pool: Pool): Promise<void> {
   `)
 
   await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS messages_content_unique
+    ON messages (content)
+  `)
+
+  await pool.query(`
     INSERT INTO messages (content)
-    SELECT 'Hello from PostgreSQL!'
-    WHERE NOT EXISTS (
-      SELECT 1 FROM messages
-    )
+    VALUES ('Hello from PostgreSQL!')
+    ON CONFLICT (content) DO NOTHING
   `)
 }
