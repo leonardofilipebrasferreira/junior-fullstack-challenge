@@ -17,3 +17,14 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+
+# Terraform plan files
+tfplan
+*.tfplan
