@@ -63,21 +63,37 @@ export async function createDatabasePool(): Promise<Pool> {
 }
 
 export async function initializeDatabase(pool: Pool): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id SERIAL PRIMARY KEY,
-      content TEXT NOT NULL
-    )
-  `)
+  const client = await pool.connect()
 
-  await pool.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS messages_content_unique
-    ON messages (content)
-  `)
+  try {
+    await client.query('BEGIN')
 
-  await pool.query(`
-    INSERT INTO messages (content)
-    VALUES ('Hello from PostgreSQL!')
-    ON CONFLICT (content) DO NOTHING
-  `)
+    // Prevent multiple API replicas from initializing the schema simultaneously
+    await client.query('SELECT pg_advisory_xact_lock(42, 1)')
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        content TEXT NOT NULL
+      )
+    `)
+
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS messages_content_unique
+      ON messages (content)
+    `)
+
+    await client.query(`
+      INSERT INTO messages (content)
+      VALUES ('Hello from PostgreSQL!')
+      ON CONFLICT (content) DO NOTHING
+    `)
+
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
 }
