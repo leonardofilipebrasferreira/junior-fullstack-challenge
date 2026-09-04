@@ -1,10 +1,80 @@
 import 'dotenv/config'
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager'
 import { Pool } from 'pg'
 
-export const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-})
+type DatabaseCredentials = {
+  username: string
+  password: string
+}
+
+async function getDatabaseCredentials(): Promise<DatabaseCredentials> {
+  const secretArn = process.env.DB_SECRET_ARN
+
+  if (!secretArn) {
+    if (!process.env.DB_USER || !process.env.DB_PASSWORD) {
+      throw new Error('Database credentials are not configured')
+    }
+
+    return {
+      username: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+    }
+  }
+
+  const client = new SecretsManagerClient({})
+
+  const response = await client.send(
+    new GetSecretValueCommand({
+      SecretId: secretArn,
+    }),
+  )
+
+  if (!response.SecretString) {
+    throw new Error('Database secret does not contain a SecretString')
+  }
+
+  const secret = JSON.parse(response.SecretString) as {
+    username: string
+    password: string
+  }
+
+  return {
+    username: secret.username,
+    password: secret.password,
+  }
+}
+
+export async function createDatabasePool(): Promise<Pool> {
+  const credentials = await getDatabaseCredentials()
+
+  return new Pool({
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT ?? 5432),
+    user: credentials.username,
+    password: credentials.password,
+    database: process.env.DB_NAME,
+    ssl:
+      process.env.DB_SSL === 'true'
+        ? {
+            rejectUnauthorized: false,
+          }
+        : false,
+  })
+}
+
+export async function initializeDatabase(pool: Pool): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      content TEXT NOT NULL
+    )
+  `)
+
+  await pool.query(`
+    INSERT INTO messages (content)
+    SELECT 'Hello from PostgreSQL!'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM messages
+    )
+  `)
+}
