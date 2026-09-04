@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend
+  namespace: default
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: default
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: backend
+
+  template:
+    metadata:
+      labels:
+        app: backend
+
+    spec:
+      serviceAccountName: backend
+
+      containers:
+        - name: backend
+          image: 214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-backend:v4
+
+          ports:
+            - containerPort: 3000
+
+          env:
+            - name: AWS_REGION
+              value: "eu-south-2"
+
+            - name: DB_HOST
+              value: "junior-fullstack-postgres.c10m2seaovjc.eu-south-2.rds.amazonaws.com"
+
+            - name: DB_PORT
+              value: "5432"
+
+            - name: DB_NAME
+              value: "challenge_db"
+
+            - name: DB_SSL
+              value: "true"
+
+            - name: DB_SECRET_ARN
+              value: "arn:aws:secretsmanager:eu-south-2:214516808468:secret:rds!db-1051fa55-d959-453c-ac10-cffb9c9e1c4c-44SGIc"
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: default
+spec:
+  selector:
+    app: backend
+
+  ports:
+    - port: 3000
+      targetPort: 3000
+
+  type: ClusterIP
+  
