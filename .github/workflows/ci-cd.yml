@@ -14,6 +14,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+        - name: Show GitHub repository IDs
+        run: |
+          echo "OWNER_ID=${{ github.repository_owner_id }}"
+          echo "REPOSITORY_ID=${{ github.repository_id }}"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
