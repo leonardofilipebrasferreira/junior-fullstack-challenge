@@ -22,3 +22,13 @@ output "backend_ecr_repository_url" {
   description = "URL of the backend ECR repository"
   value       = aws_ecr_repository.backend.repository_url
 }
+
+output "database_endpoint" {
+  description = "PostgreSQL RDS endpoint"
+  value       = aws_db_instance.database.address
+}
+
+output "database_secret_arn" {
+  description = "ARN of the RDS master credentials secret"
+  value       = aws_db_instance.database.master_user_secret[0].secret_arn
+}
