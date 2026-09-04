@@ -8,17 +8,15 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
 
     steps:
-      - name: Show GitHub repository IDs
-        run: |
-          echo "OWNER_ID=$GITHUB_REPOSITORY_OWNER_ID"
-          echo "REPOSITORY_ID=$GITHUB_REPOSITORY_ID"
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -63,3 +61,26 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+  aws-auth:
+    name: AWS authentication
+    runs-on: ubuntu-latest
+    needs:
+      - backend
+      - frontend
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::214516808468:role/junior-fullstack-github-actions-role
+          aws-region: eu-south-2
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity

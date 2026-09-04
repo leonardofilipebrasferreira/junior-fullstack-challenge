@@ -30,7 +30,7 @@ resource "aws_iam_role" "github_actions" {
         Condition = {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-            "token.actions.githubusercontent.com:sub" = "repo:leonardofilipebrasferreira/junior-fullstack-challenge:ref:refs/heads/main"
+            "token.actions.githubusercontent.com:sub" = "repo:leonardofilipebrasferreira@324475965/junior-fullstack-challenge@1357405267:ref:refs/heads/main"
           }
         }
       }
