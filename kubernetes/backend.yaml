@@ -27,7 +27,8 @@ spec:
 
       containers:
         - name: backend
-          image: 214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-backend:v4
+          image: 214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-backend:latest
+          imagePullPolicy: Always
 
           ports:
             - containerPort: 3000

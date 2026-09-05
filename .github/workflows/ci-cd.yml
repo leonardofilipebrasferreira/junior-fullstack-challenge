@@ -94,16 +94,26 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/junior-fullstack-backend:$IMAGE_TAG ./backend
+          docker build \
+            -t $ECR_REGISTRY/junior-fullstack-backend:$IMAGE_TAG \
+            -t $ECR_REGISTRY/junior-fullstack-backend:latest \
+            ./backend
+
           docker push $ECR_REGISTRY/junior-fullstack-backend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/junior-fullstack-backend:latest
 
       - name: Build and push frontend image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/junior-fullstack-frontend:$IMAGE_TAG ./frontend
+          docker build \
+            -t $ECR_REGISTRY/junior-fullstack-frontend:$IMAGE_TAG \
+            -t $ECR_REGISTRY/junior-fullstack-frontend:latest \
+            ./frontend
+
           docker push $ECR_REGISTRY/junior-fullstack-frontend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/junior-fullstack-frontend:latest
 
   deploy:
     name: Deploy to EKS
@@ -118,6 +128,9 @@ jobs:
       contents: read
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -126,14 +139,26 @@ jobs:
 
       - name: Configure kubectl
         run: |
-          aws eks update-kubeconfig --region eu-south-2 --name junior-fullstack-eks
+          aws eks update-kubeconfig \
+            --region eu-south-2 \
+            --name junior-fullstack-eks
 
-      - name: Deploy backend and frontend
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f kubernetes/backend.yaml
+          kubectl apply -f kubernetes/frontend.yaml
+
+      - name: Pin deployments to commit images
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          kubectl set image deployment/backend backend=214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-backend:$IMAGE_TAG
-          kubectl set image deployment/frontend frontend=214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-frontend:$IMAGE_TAG
+          kubectl set image \
+            deployment/backend \
+            backend=214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-backend:$IMAGE_TAG
+
+          kubectl set image \
+            deployment/frontend \
+            frontend=214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-frontend:$IMAGE_TAG
 
       - name: Verify deployment
         run: |
