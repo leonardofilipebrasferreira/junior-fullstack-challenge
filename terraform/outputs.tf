@@ -32,3 +32,13 @@ output "database_secret_arn" {
   description = "ARN of the RDS master credentials secret"
   value       = aws_db_instance.database.master_user_secret[0].secret_arn
 }
+
+output "load_balancer_dns_name" {
+  description = "Public DNS name of the Application Load Balancer"
+  value       = aws_lb.application.dns_name
+}
+
+output "application_https_url" {
+  description = "HTTPS URL of the application"
+  value       = "https://${aws_lb.application.dns_name}"
+}
