@@ -81,6 +81,12 @@ resource "aws_iam_role_policy" "github_actions" {
         Effect   = "Allow"
         Action   = "eks:DescribeCluster"
         Resource = module.eks.cluster_arn
+      },
+      {
+        Sid      = "DescribeDatabase"
+        Effect   = "Allow"
+        Action   = "rds:DescribeDBInstances"
+        Resource = aws_db_instance.database.arn
       }
     ]
   })

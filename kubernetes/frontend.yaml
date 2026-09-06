@@ -1,8 +1,12 @@
+# Values surrounded by __...__ are resolved automatically by CI/CD
+# before this manifest is applied to Kubernetes.
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
   namespace: default
+
 spec:
   replicas: 1
 
@@ -18,8 +22,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: 214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-frontend:latest
-          imagePullPolicy: Always
+          image: "__FRONTEND_IMAGE__"
 
           ports:
             - containerPort: 80
@@ -44,6 +47,7 @@ kind: Service
 metadata:
   name: frontend
   namespace: default
+
 spec:
   selector:
     app: frontend

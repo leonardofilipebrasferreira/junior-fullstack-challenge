@@ -1,3 +1,6 @@
+# Values surrounded by __...__ are resolved automatically by CI/CD
+# before this manifest is applied to Kubernetes.
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -10,6 +13,7 @@ kind: Deployment
 metadata:
   name: backend
   namespace: default
+
 spec:
   replicas: 2
 
@@ -27,8 +31,7 @@ spec:
 
       containers:
         - name: backend
-          image: 214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-backend:latest
-          imagePullPolicy: Always
+          image: "__BACKEND_IMAGE__"
 
           ports:
             - containerPort: 3000
@@ -38,7 +41,7 @@ spec:
               value: "eu-south-2"
 
             - name: DB_HOST
-              value: "junior-fullstack-postgres.c10m2seaovjc.eu-south-2.rds.amazonaws.com"
+              value: "__DB_HOST__"
 
             - name: DB_PORT
               value: "5432"
@@ -50,7 +53,7 @@ spec:
               value: "true"
 
             - name: DB_SECRET_ARN
-              value: "arn:aws:secretsmanager:eu-south-2:214516808468:secret:rds!db-1051fa55-d959-453c-ac10-cffb9c9e1c4c-44SGIc"
+              value: "__DB_SECRET_ARN__"
 
           readinessProbe:
             httpGet:
@@ -72,6 +75,7 @@ kind: Service
 metadata:
   name: backend
   namespace: default
+
 spec:
   selector:
     app: backend
@@ -81,4 +85,3 @@ spec:
       targetPort: 3000
 
   type: ClusterIP
-  

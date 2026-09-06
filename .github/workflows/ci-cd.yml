@@ -11,6 +11,14 @@ on:
 permissions:
   contents: read
 
+env:
+  AWS_REGION: eu-south-2
+  AWS_ROLE_ARN: arn:aws:iam::214516808468:role/junior-fullstack-github-actions-role
+  EKS_CLUSTER_NAME: junior-fullstack-eks
+  BACKEND_ECR_REPOSITORY: junior-fullstack-backend
+  FRONTEND_ECR_REPOSITORY: junior-fullstack-frontend
+  DB_INSTANCE_IDENTIFIER: junior-fullstack-postgres
+
 jobs:
   backend:
     name: Backend tests
@@ -82,8 +90,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::214516808468:role/junior-fullstack-github-actions-role
-          aws-region: eu-south-2
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -95,12 +103,12 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
-            -t $ECR_REGISTRY/junior-fullstack-backend:$IMAGE_TAG \
-            -t $ECR_REGISTRY/junior-fullstack-backend:latest \
+            -t "$ECR_REGISTRY/$BACKEND_ECR_REPOSITORY:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/$BACKEND_ECR_REPOSITORY:latest" \
             ./backend
 
-          docker push $ECR_REGISTRY/junior-fullstack-backend:$IMAGE_TAG
-          docker push $ECR_REGISTRY/junior-fullstack-backend:latest
+          docker push "$ECR_REGISTRY/$BACKEND_ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$BACKEND_ECR_REPOSITORY:latest"
 
       - name: Build and push frontend image
         env:
@@ -108,12 +116,12 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
-            -t $ECR_REGISTRY/junior-fullstack-frontend:$IMAGE_TAG \
-            -t $ECR_REGISTRY/junior-fullstack-frontend:latest \
+            -t "$ECR_REGISTRY/$FRONTEND_ECR_REPOSITORY:$IMAGE_TAG" \
+            -t "$ECR_REGISTRY/$FRONTEND_ECR_REPOSITORY:latest" \
             ./frontend
 
-          docker push $ECR_REGISTRY/junior-fullstack-frontend:$IMAGE_TAG
-          docker push $ECR_REGISTRY/junior-fullstack-frontend:latest
+          docker push "$ECR_REGISTRY/$FRONTEND_ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$FRONTEND_ECR_REPOSITORY:latest"
 
   deploy:
     name: Deploy to EKS
@@ -134,31 +142,76 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::214516808468:role/junior-fullstack-github-actions-role
-          aws-region: eu-south-2
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Configure kubectl
         run: |
           aws eks update-kubeconfig \
-            --region eu-south-2 \
-            --name junior-fullstack-eks
+            --region "$AWS_REGION" \
+            --name "$EKS_CLUSTER_NAME"
+
+      - name: Resolve AWS deployment values
+        id: deployment-values
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ACCOUNT_ID="$(aws sts get-caller-identity \
+            --query Account \
+            --output text)"
+
+          ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+          DB_HOST="$(aws rds describe-db-instances \
+            --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
+            --region "$AWS_REGION" \
+            --query "DBInstances[0].Endpoint.Address" \
+            --output text)"
+
+          DB_SECRET_ARN="$(aws rds describe-db-instances \
+            --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
+            --region "$AWS_REGION" \
+            --query "DBInstances[0].MasterUserSecret.SecretArn" \
+            --output text)"
+
+          echo "ecr_registry=$ECR_REGISTRY" >> "$GITHUB_OUTPUT"
+          echo "db_host=$DB_HOST" >> "$GITHUB_OUTPUT"
+          echo "db_secret_arn=$DB_SECRET_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Render Kubernetes manifests
+        shell: bash
+        env:
+          ECR_REGISTRY: ${{ steps.deployment-values.outputs.ecr_registry }}
+          DB_HOST: ${{ steps.deployment-values.outputs.db_host }}
+          DB_SECRET_ARN: ${{ steps.deployment-values.outputs.db_secret_arn }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          BACKEND_IMAGE="$ECR_REGISTRY/$BACKEND_ECR_REPOSITORY:$IMAGE_TAG"
+          FRONTEND_IMAGE="$ECR_REGISTRY/$FRONTEND_ECR_REPOSITORY:$IMAGE_TAG"
+
+          sed \
+            -e "s|__BACKEND_IMAGE__|$BACKEND_IMAGE|g" \
+            -e "s|__DB_HOST__|$DB_HOST|g" \
+            -e "s|__DB_SECRET_ARN__|$DB_SECRET_ARN|g" \
+            kubernetes/backend.yaml > /tmp/backend.yaml
+
+          sed \
+            -e "s|__FRONTEND_IMAGE__|$FRONTEND_IMAGE|g" \
+            kubernetes/frontend.yaml > /tmp/frontend.yaml
+
+      - name: Validate Kubernetes manifests
+        run: |
+          kubectl apply --dry-run=server \
+            -f /tmp/backend.yaml \
+            -f /tmp/frontend.yaml
 
       - name: Apply Kubernetes manifests
         run: |
-          kubectl apply -f kubernetes/backend.yaml
-          kubectl apply -f kubernetes/frontend.yaml
-
-      - name: Pin deployments to commit images
-        env:
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          kubectl set image \
-            deployment/backend \
-            backend=214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-backend:$IMAGE_TAG
-
-          kubectl set image \
-            deployment/frontend \
-            frontend=214516808468.dkr.ecr.eu-south-2.amazonaws.com/junior-fullstack-frontend:$IMAGE_TAG
+          kubectl apply -f /tmp/backend.yaml
+          kubectl apply -f /tmp/frontend.yaml
 
       - name: Verify deployment
         run: |
